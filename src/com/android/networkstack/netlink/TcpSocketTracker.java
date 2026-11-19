@@ -303,7 +303,16 @@ public class TcpSocketTracker {
                     new RoutingAttribute(bytes.getShort(), bytes.getShort());
             final short dataLen = rtattr.getDataLength();
             if (rtattr.rtaType == RoutingAttribute.INET_DIAG_INFO) {
+                final int attrStart = bytes.position();
                 tcpInfo = TcpInfo.parse(bytes, dataLen);
+                if (tcpInfo == null) {
+                    // A kernel whose struct tcp_info ends before tcpi_segs_in (older than 4.2)
+                    // cannot be parsed, and the failed parse leaves the position at the start
+                    // of the attribute: step over it, or every following attribute and message
+                    // is read from the wrong offset.
+                    bytes.position(attrStart);
+                    skipRemainingAttributesBytesAligned(bytes, dataLen);
+                }
             } else if (rtattr.rtaType == RoutingAttribute.INET_DIAG_MARK) {
                 mark = bytes.getInt();
             } else {
